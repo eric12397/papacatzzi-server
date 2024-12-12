@@ -3,10 +3,10 @@ package db
 import "github.com/papacatzzi-server/models"
 
 func (s Store) GetPosts(
-	north float64,
-	south float64,
-	east float64,
-	west float64,
+	northEastLat float64,
+	northEastLng float64,
+	southWestLat float64,
+	southWestLng float64,
 ) (posts []models.Post, err error) {
 
 	posts = append(posts,

@@ -9,31 +9,31 @@ import (
 func (s *Server) getPosts(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
-	north, err := strconv.ParseFloat(queryParams.Get("north"), 64)
+	northEastLat, err := strconv.ParseFloat(queryParams.Get("northEastLat"), 64)
 	if err != nil {
-		http.Error(w, "Error parsing coordinates.", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing northEastLat", http.StatusBadRequest)
 		return
 	}
 
-	south, err := strconv.ParseFloat(queryParams.Get("south"), 64)
+	northEastLng, err := strconv.ParseFloat(queryParams.Get("northEastLng"), 64)
 	if err != nil {
-		http.Error(w, "Error parsing coordinates.", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing northEastLng", http.StatusBadRequest)
 		return
 	}
 
-	east, err := strconv.ParseFloat(queryParams.Get("east"), 64)
+	southWestLat, err := strconv.ParseFloat(queryParams.Get("southWestLat"), 64)
 	if err != nil {
-		http.Error(w, "Error parsing coordinates.", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing southWestLat", http.StatusBadRequest)
 		return
 	}
 
-	west, err := strconv.ParseFloat(queryParams.Get("west"), 64)
+	southWestLng, err := strconv.ParseFloat(queryParams.Get("southWestLng"), 64)
 	if err != nil {
-		http.Error(w, "Error parsing coordinates.", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing southWestLng", http.StatusBadRequest)
 		return
 	}
 
-	posts, err := s.store.GetPosts(north, south, east, west)
+	posts, err := s.store.GetPosts(northEastLat, northEastLng, southWestLat, southWestLng)
 	if err != nil {
 		http.Error(w, "Error getting posts.", http.StatusBadRequest)
 		return
