@@ -1,30 +1,30 @@
 package db
 
 import (
-	"time"
-
 	"github.com/papacatzzi-server/models"
 )
 
 func (s Store) GetCoordinates(
-	minLat float64,
 	minLng float64,
-	maxLat float64,
+	minLat float64,
 	maxLng float64,
-) (coords []models.Coordinates, err error) {
+	maxLat float64,
+) (coordinates []models.Coordinates, err error) {
 
-	coords = append(coords,
-		models.Coordinates{
-			Latitude:  minLat,
-			Longitude: minLng,
-			Timestamp: time.Now(),
-		},
-		models.Coordinates{
-			Latitude:  maxLat,
-			Longitude: maxLng,
-			Timestamp: time.Now(),
-		},
-	)
+	rows, err := s.db.Query(`
+		SELECT latitude, longitude, created_at
+		FROM posts
+		WHERE ST_MakePoint(longitude, latitude) && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+	`, minLng, minLat, maxLng, maxLat)
+
+	for rows.Next() {
+		var coords models.Coordinates
+		if err = rows.Scan(&coords.Latitude, &coords.Longitude, &coords.Timestamp); err != nil {
+			return
+		}
+
+		coordinates = append(coordinates, coords)
+	}
 
 	return
 }
