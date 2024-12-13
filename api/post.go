@@ -9,31 +9,31 @@ import (
 func (s *Server) getCoordinates(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
-	northEastLat, err := strconv.ParseFloat(queryParams.Get("northEastLat"), 64)
+	minLat, err := strconv.ParseFloat(queryParams.Get("minLat"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing northEastLat", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing minLat", http.StatusBadRequest)
 		return
 	}
 
-	northEastLng, err := strconv.ParseFloat(queryParams.Get("northEastLng"), 64)
+	minLng, err := strconv.ParseFloat(queryParams.Get("minLng"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing northEastLng", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing minLng", http.StatusBadRequest)
 		return
 	}
 
-	southWestLat, err := strconv.ParseFloat(queryParams.Get("southWestLat"), 64)
+	maxLat, err := strconv.ParseFloat(queryParams.Get("maxLat"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing southWestLat", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing maxLat", http.StatusBadRequest)
 		return
 	}
 
-	southWestLng, err := strconv.ParseFloat(queryParams.Get("southWestLng"), 64)
+	maxLng, err := strconv.ParseFloat(queryParams.Get("maxLng"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing southWestLng", http.StatusBadRequest)
+		http.Error(w, "Invalid or missing maxLng", http.StatusBadRequest)
 		return
 	}
 
-	posts, err := s.store.GetCoordinates(northEastLat, northEastLng, southWestLat, southWestLng)
+	posts, err := s.store.GetCoordinates(minLat, minLng, maxLat, maxLng)
 	if err != nil {
 		http.Error(w, "Error getting posts.", http.StatusBadRequest)
 		return

@@ -7,21 +7,21 @@ import (
 )
 
 func (s Store) GetCoordinates(
-	northEastLat float64,
-	northEastLng float64,
-	southWestLat float64,
-	southWestLng float64,
+	minLat float64,
+	minLng float64,
+	maxLat float64,
+	maxLng float64,
 ) (coords []models.Coordinates, err error) {
 
 	coords = append(coords,
 		models.Coordinates{
-			Latitude:  northEastLat,
-			Longitude: northEastLng,
+			Latitude:  minLat,
+			Longitude: minLng,
 			Timestamp: time.Now(),
 		},
 		models.Coordinates{
-			Latitude:  southWestLat,
-			Longitude: southWestLng,
+			Latitude:  maxLat,
+			Longitude: maxLng,
 			Timestamp: time.Now(),
 		},
 	)
