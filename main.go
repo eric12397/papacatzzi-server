@@ -6,9 +6,12 @@ import (
 )
 
 func main() {
-	db := db.NewStore()
+	store, err := db.NewStore()
+	if err != nil {
+		return
+	}
 
-	server, err := api.NewServer(db)
+	server, err := api.NewServer(store)
 	if err != nil {
 		return
 	}
