@@ -26,7 +26,7 @@ func NewServer(store db.Store) (s *Server, err error) {
 func (s *Server) setupRouter() (r *mux.Router) {
 	r = mux.NewRouter()
 
-	r.HandleFunc("/posts", s.getPosts).Methods("GET")
+	r.HandleFunc("/posts/coordinates", s.getCoordinates).Methods("GET")
 	r.Use(corsMiddleware)
 	return
 }

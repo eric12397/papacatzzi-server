@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func (s *Server) getPosts(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getCoordinates(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
 	northEastLat, err := strconv.ParseFloat(queryParams.Get("northEastLat"), 64)
@@ -33,7 +33,7 @@ func (s *Server) getPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	posts, err := s.store.GetPosts(northEastLat, northEastLng, southWestLat, southWestLng)
+	posts, err := s.store.GetCoordinates(northEastLat, northEastLng, southWestLat, southWestLng)
 	if err != nil {
 		http.Error(w, "Error getting posts.", http.StatusBadRequest)
 		return

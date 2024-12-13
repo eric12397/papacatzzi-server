@@ -1,28 +1,28 @@
 package db
 
-import "github.com/papacatzzi-server/models"
+import (
+	"time"
 
-func (s Store) GetPosts(
+	"github.com/papacatzzi-server/models"
+)
+
+func (s Store) GetCoordinates(
 	northEastLat float64,
 	northEastLng float64,
 	southWestLat float64,
 	southWestLng float64,
-) (posts []models.Post, err error) {
+) (coords []models.Coordinates, err error) {
 
-	posts = append(posts,
-		models.Post{
-			Animal:    "cat",
-			PhotoURL:  "",
-			Longitude: 33,
-			Latitude:  33,
-			Author:    "author1",
+	coords = append(coords,
+		models.Coordinates{
+			Latitude:  northEastLat,
+			Longitude: northEastLng,
+			Timestamp: time.Now(),
 		},
-		models.Post{
-			Animal:    "cat",
-			PhotoURL:  "",
-			Longitude: 33,
-			Latitude:  33,
-			Author:    "author2",
+		models.Coordinates{
+			Latitude:  southWestLat,
+			Longitude: southWestLng,
+			Timestamp: time.Now(),
 		},
 	)
 
