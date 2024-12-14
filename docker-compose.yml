@@ -5,28 +5,21 @@ services:
   #     dockerfile: Dockerfile
   #   ports:
   #     - "8080:8080"
-  #   environment:
-  #     - DB_HOST=db
-  #     - DB_PORT=5432
-  #     - DB_USER=papacatzzi
-  #     - DB_PASSWORD=papacatzzi
-  #     - DB_NAME=papacatzzi
+  #   env_file:
+  #     - .env
   #   depends_on:
   #     - db
 
   db:
     image: postgis/postgis:15-3.4
-    container_name: papacatzzi-db
     restart: always
     ports:
-    - "5432:5432"
-    environment:
-      POSTGRES_USER: papacatzzi
-      POSTGRES_PASSWORD: papacatzzi
-      POSTGRES_DB: papacatzzi
+      - "5432:5432"
+    env_file:
+      - .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
-  postgres_data:
+  db-data:
