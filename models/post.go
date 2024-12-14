@@ -9,6 +9,7 @@ type Post struct {
 }
 
 type Coordinates struct {
+	PostID    int
 	Latitude  float64
 	Longitude float64
 	Timestamp time.Time
