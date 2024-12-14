@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"github.com/gorilla/mux"
 )
 
-func (s *Server) getCoordinates(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
 	minLng, err := strconv.ParseFloat(queryParams.Get("minLng"), 64)
@@ -33,11 +35,24 @@ func (s *Server) getCoordinates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	coords, err := s.store.GetCoordinates(minLng, minLat, maxLng, maxLat)
+	sightings, err := s.store.GetSightingsByCoordinates(minLng, minLat, maxLng, maxLat)
 	if err != nil {
-		http.Error(w, "Error getting coords.", http.StatusBadRequest)
+		http.Error(w, "Error getting sightings.", http.StatusBadRequest)
 		return
 	}
 
-	json.NewEncoder(w).Encode(coords)
+	json.NewEncoder(w).Encode(sightings)
+}
+
+func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	sighting, err := s.store.GetSightingByID(id)
+	if err != nil {
+		http.Error(w, "Error getting sighting by ID.", http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(sighting)
 }
