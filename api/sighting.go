@@ -2,12 +2,17 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/gorilla/mux"
+	"github.com/papacatzzi-server/models"
 )
 
+// TODO: get coordinates DTO
 func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
@@ -44,6 +49,7 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sightings)
 }
 
+// TODO: get details DTO
 func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -55,4 +61,62 @@ func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(sighting)
+}
+
+type createSightingRequest struct {
+	Animal      string    `json:"animal"`
+	Description string    `json:"description"`
+	PhotoURL    string    `json:"photoURL"`
+	Reporter    string    `json:"reporter"`
+	Latitude    float64   `json:"latitude"`
+	Longitude   float64   `json:"longitude"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+func (csr createSightingRequest) Validate() (err error) {
+	// Leaving out reporter for now...
+	// Need to implement users/accounts
+	return validation.ValidateStruct(&csr,
+		validation.Field(&csr.Animal, validation.Required),
+		validation.Field(&csr.Description, validation.Required),
+		validation.Field(&csr.PhotoURL, validation.Required),
+		validation.Field(&csr.Latitude, validation.Required),
+		validation.Field(&csr.Longitude, validation.Required),
+		validation.Field(&csr.Timestamp, validation.Required),
+	)
+}
+
+func (s *Server) createSighting(w http.ResponseWriter, r *http.Request) {
+	var csr createSightingRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&csr); err != nil {
+		log.Print("failed to parse request json: ", err)
+		http.Error(w, "Error creating sighting.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	if err := csr.Validate(); err != nil {
+		log.Print("failed to validate create sighting request: ", err)
+		http.Error(w, "Error creating sighting", http.StatusUnprocessableEntity)
+		return
+	}
+
+	newSighting := models.Sighting{
+		Animal:      csr.Animal,
+		Description: csr.Description,
+		PhotoURL:    csr.PhotoURL,
+		Reporter:    csr.Reporter,
+		Latitude:    csr.Latitude,
+		Longitude:   csr.Longitude,
+		Timestamp:   csr.Timestamp,
+	}
+
+	err := s.store.InsertSighting(newSighting)
+	if err != nil {
+		log.Print("failed to insert sighting: ", err)
+		http.Error(w, "Error creating sighting.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

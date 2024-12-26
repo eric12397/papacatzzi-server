@@ -44,3 +44,14 @@ func (s Store) GetSightingByID(id string) (sighting models.Sighting, err error) 
 
 	return
 }
+
+func (s Store) InsertSighting(sighting models.Sighting) (err error) {
+
+	_, err = s.db.Exec(`
+		INSERT INTO sightings 
+		(user_id, animal_type, photo_url, description, latitude, longitude, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, sighting.Reporter, sighting.Animal, sighting.PhotoURL, sighting.Description, sighting.Latitude, sighting.Longitude, sighting.Timestamp)
+
+	return
+}
