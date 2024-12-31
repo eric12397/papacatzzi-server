@@ -49,18 +49,34 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sightings)
 }
 
-// TODO: get details DTO
+type sightingDetailsResponse struct {
+	Animal      string    `json:"animal"`
+	Description string    `json:"description"`
+	PhotoURL    string    `json:"photoURL"`
+	Reporter    string    `json:"reporter"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
 func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
 	sighting, err := s.store.GetSightingByID(id)
 	if err != nil {
+		log.Print("failed to get sighting by id: ", err)
 		http.Error(w, "Error getting sighting by ID.", http.StatusBadRequest)
 		return
 	}
 
-	json.NewEncoder(w).Encode(sighting)
+	res := sightingDetailsResponse{
+		Animal:      sighting.Animal,
+		Description: sighting.Description,
+		PhotoURL:    sighting.PhotoURL,
+		Reporter:    sighting.Reporter,
+		Timestamp:   sighting.Timestamp,
+	}
+
+	json.NewEncoder(w).Encode(res)
 }
 
 type createSightingRequest struct {
