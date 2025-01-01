@@ -12,7 +12,13 @@ import (
 	"github.com/papacatzzi-server/models"
 )
 
-// TODO: get coordinates DTO
+type coordinates struct {
+	ID        int       `json:"id"`
+	Latitude  float64   `json:"latitude"`
+	Longitude float64   `json:"longitude"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
 
@@ -46,7 +52,17 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(sightings)
+	coords := make([]coordinates, 0)
+	for _, s := range sightings {
+		coords = append(coords, coordinates{
+			ID:        s.ID,
+			Latitude:  s.Latitude,
+			Longitude: s.Longitude,
+			Timestamp: s.Timestamp,
+		})
+	}
+
+	json.NewEncoder(w).Encode(coords)
 }
 
 type sightingDetailsResponse struct {
