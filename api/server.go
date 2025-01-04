@@ -26,6 +26,8 @@ func NewServer(store db.Store) (s *Server, err error) {
 func (s *Server) setupRouter() (r *mux.Router) {
 	r = mux.NewRouter()
 
+	r.HandleFunc("/signup", s.signUp).Methods("POST")
+
 	r.HandleFunc("/sightings", s.listSightings).Methods("GET")
 	r.HandleFunc("/sightings", s.createSighting).Methods("POST")
 	r.HandleFunc("/sightings/{id}", s.getSighting).Methods("GET")
