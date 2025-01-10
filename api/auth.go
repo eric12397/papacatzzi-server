@@ -56,9 +56,9 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// cache verification code into redis
 	code := generateVerificationCode()
 
-	// cache verification code, email, and expiration into redis
 	err = s.redis.Set(context.Background(), req.Email, code, time.Minute*5).Err()
 	if err != nil {
 		log.Print("failed to cache verification code: ", err)
