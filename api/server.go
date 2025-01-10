@@ -6,17 +6,23 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/papacatzzi-server/db"
+	"github.com/papacatzzi-server/email"
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
 	server *http.Server
 	store  db.Store
+	mailer email.Mailer
+	redis  *redis.Client
 }
 
-func NewServer(store db.Store) (s *Server, err error) {
+func NewServer(store db.Store, mailer email.Mailer, redis *redis.Client) (s *Server, err error) {
 	s = &Server{
 		server: &http.Server{Addr: ":8080"},
 		store:  store,
+		mailer: mailer,
+		redis:  redis,
 	}
 
 	s.server.Handler = s.setupRouter()
@@ -26,7 +32,9 @@ func NewServer(store db.Store) (s *Server, err error) {
 func (s *Server) setupRouter() (r *mux.Router) {
 	r = mux.NewRouter()
 
-	r.HandleFunc("/signup", s.signUp).Methods("POST")
+	r.HandleFunc("/signup/begin", s.beginSignUp).Methods("POST")
+	r.HandleFunc("/signup/verify", s.verifySignUp).Methods("POST")
+	r.HandleFunc("/signup/finish", s.finishSignUp).Methods("POST")
 
 	r.HandleFunc("/sightings", s.listSightings).Methods("GET")
 	r.HandleFunc("/sightings", s.createSighting).Methods("POST")
