@@ -16,10 +16,10 @@ func (s Store) GetUserByName(username string) (user models.User, err error) {
 func (s Store) GetUserByEmail(email string) (user models.User, err error) {
 
 	err = s.db.QueryRow(`
-		SELECT email
+		SELECT email, is_active
 		FROM users
 		WHERE email = $1
-	`, email).Scan(&user.Email)
+	`, email).Scan(&user.Email, &user.IsActive)
 
 	return
 }

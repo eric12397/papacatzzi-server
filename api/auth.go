@@ -42,15 +42,15 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if there is an existing account with this email
-	_, err := s.store.GetUserByEmail(req.Email)
-	if err == nil {
+	// check if there is an active account with this email
+	user, err := s.store.GetUserByEmail(req.Email)
+	if user.IsActive {
 		log.Print("user with this email exists: ", req.Email)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		http.Error(w, "User with this email exists, please log in:", http.StatusUnprocessableEntity)
 		return
 	}
 
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		log.Print("error fetching email from db: ", req.Email)
 		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
 		return
