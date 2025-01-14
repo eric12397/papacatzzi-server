@@ -66,11 +66,12 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.mailer.SendVerificationCode(req.Email, code); err != nil {
-		log.Print("failed to send verification code via email: ", err)
-		http.Error(w, "Error sending email", http.StatusUnprocessableEntity)
-		return
-	}
+	go func() {
+		if err := s.mailer.SendVerificationCode(req.Email, code); err != nil {
+			log.Print("failed to send verification code via email: ", err)
+			return
+		}
+	}()
 
 	log.Print("email sent successfully")
 	w.WriteHeader(http.StatusOK)
@@ -121,7 +122,7 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cached != req.Code {
-		log.Print("incorrect code: ", err)
+		log.Print("incorrect code: ", req.Code)
 		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
 		return
 	}
