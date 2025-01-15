@@ -115,7 +115,7 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check cache if verification code is correct and if expired
+	// check cache if verification code is correct
 	cached, err := s.redis.Get(context.Background(), req.Email).Result()
 	if err != nil {
 		log.Print("failed to get verification code: ", err)
