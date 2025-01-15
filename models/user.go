@@ -8,4 +8,5 @@ type User struct {
 	Email     string
 	Password  string
 	CreatedAt time.Time
+	IsActive  bool
 }
