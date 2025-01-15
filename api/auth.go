@@ -17,6 +17,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const EmailVerified = "EMAIL_VERIFIED"
+
 type beginSignUpRequest struct {
 	Email string `json:"email"`
 }
@@ -46,11 +48,11 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.GetUserByEmail(req.Email)
 	if user.IsActive {
 		log.Print("user with this email exists: ", req.Email)
-		http.Error(w, "User with this email exists, please log in:", http.StatusUnprocessableEntity)
+		http.Error(w, "User with this email exists", http.StatusUnprocessableEntity)
 		return
 	}
 
-	if err != nil {
+	if !errors.Is(err, sql.ErrNoRows) {
 		log.Print("error fetching email from db: ", req.Email)
 		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
 		return
@@ -94,7 +96,7 @@ type verifySignUpRequest struct {
 func (req verifySignUpRequest) Validate() (err error) {
 	return validation.ValidateStruct(&req,
 		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Code, validation.Required, validation.Length(0, 6)),
+		validation.Field(&req.Code, validation.Required, validation.Length(6, 6), is.Digit),
 	)
 }
 
@@ -127,24 +129,11 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if successful, delete cache entry
-	_, err = s.redis.Del(context.Background(), req.Email).Result()
+	// if successful, set status to verified
+	err = s.redis.Set(context.Background(), req.Email, EmailVerified, time.Minute*5).Err()
 	if err != nil {
-		log.Print("failed to delete verification code from redis: ", err)
+		log.Print("failed to cache verification code: ", err)
 		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
-		return
-	}
-
-	// save user's email
-	newUser := models.User{
-		Email:     req.Email,
-		CreatedAt: time.Now(),
-	}
-
-	err = s.store.InsertUser(newUser)
-	if err != nil {
-		log.Print("failed to insert user: ", err)
-		http.Error(w, "Error creating user.", http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -181,7 +170,15 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := s.store.GetUserByName(req.Username)
+	// check cache if email was verified
+	status, err := s.redis.Get(context.Background(), req.Email).Result()
+	if err != nil || status != EmailVerified {
+		log.Print("failed to get verification status: ", err)
+		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	_, err = s.store.GetUserByName(req.Username)
 	if err == nil {
 		log.Print("username exists: ", req.Username)
 		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
@@ -194,32 +191,37 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// find user's email that was previously saved in the verify step
-	user, err := s.store.GetUserByEmail(req.Email)
-	if err != nil {
-		log.Print("failed to find user's email: ", err)
-		http.Error(w, "User did not verify email", http.StatusUnprocessableEntity)
-		return
-	}
-
 	// hash password
 	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
 		return
 	}
 
-	user.Username = req.Username
-	user.Password = string(hashed)
-	user.IsActive = true
+	// save user's email
+	newUser := models.User{
+		Email:     req.Email,
+		Username:  req.Username,
+		Password:  string(hashed),
+		CreatedAt: time.Now(),
+		IsActive:  true,
+	}
 
-	err = s.store.ActivateUser(user)
+	err = s.store.InsertUser(newUser)
 	if err != nil {
 		log.Print("failed to insert user: ", err)
 		http.Error(w, "Error creating user.", http.StatusUnprocessableEntity)
 		return
 	}
 
+	// clean up cache after new user is saved
+	_, err = s.redis.Del(context.Background(), req.Email).Result()
+	if err != nil {
+		log.Print("failed to delete verification status: ", err)
+		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		return
+	}
+
 	// TODO: return jwt
-	log.Print("user signed up successfully: ", user.Username)
+	log.Print("user signed up successfully: ", newUser.Username)
 	w.WriteHeader(http.StatusOK)
 }

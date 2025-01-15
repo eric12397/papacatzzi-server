@@ -28,20 +28,9 @@ func (s Store) InsertUser(user models.User) (err error) {
 
 	_, err = s.db.Exec(`
 		INSERT INTO users 
-		(username, email, password, created_at)
-		VALUES ($1, $2, $3, $4)
-	`, user.Username, user.Email, user.Password, user.CreatedAt)
-
-	return
-}
-
-func (s Store) ActivateUser(user models.User) (err error) {
-
-	_, err = s.db.Exec(`
-		UPDATE users
-		SET username=$1, password=$2, is_active=$3
-		WHERE email=$4
-	`, user.Username, user.Password, user.IsActive, user.Email)
+		(username, email, password, created_at, is_active)
+		VALUES ($1, $2, $3, $4, $5)
+	`, user.Username, user.Email, user.Password, user.CreatedAt, user.IsActive)
 
 	return
 }
