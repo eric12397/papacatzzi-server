@@ -34,13 +34,13 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Print("failed to parse request json: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
 		return
 	}
 
 	if err := req.Validate(); err != nil {
 		log.Print("failed to validate sign up request: ", err)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -48,13 +48,13 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 	user, err := s.store.GetUserByEmail(req.Email)
 	if user.IsActive {
 		log.Print("user with this email exists: ", req.Email)
-		http.Error(w, "User with this email exists", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusBadRequest, "User with this email exists")
 		return
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
 		log.Print("error fetching email from db: ", req.Email)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusInternalServerError, "Error signing up new user")
 		return
 	}
 
@@ -64,7 +64,7 @@ func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
 	err = s.redis.Set(context.Background(), req.Email, code, time.Minute*5).Err()
 	if err != nil {
 		log.Print("failed to cache verification code: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusInternalServerError, "Error creating verification code")
 		return
 	}
 
@@ -105,13 +105,13 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Print("failed to parse request json: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
 		return
 	}
 
 	if err := req.Validate(); err != nil {
 		log.Print("failed to validate sign up request: ", err)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -119,13 +119,17 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 	cached, err := s.redis.Get(context.Background(), req.Email).Result()
 	if err != nil {
 		log.Print("failed to get verification code: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(
+			w,
+			http.StatusInternalServerError,
+			"Error verifying email. Please start over to generate a new verification code.",
+		)
 		return
 	}
 
 	if cached != req.Code {
 		log.Print("incorrect code: ", req.Code)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusUnprocessableEntity, "Incorrect code")
 		return
 	}
 
@@ -133,7 +137,7 @@ func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
 	err = s.redis.Set(context.Background(), req.Email, EmailVerified, time.Minute*5).Err()
 	if err != nil {
 		log.Print("failed to cache verification code: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusInternalServerError, "Error verifying email")
 		return
 	}
 
@@ -160,13 +164,13 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Print("failed to parse request json: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
 		return
 	}
 
 	if err := req.Validate(); err != nil {
 		log.Print("failed to validate sign up request: ", err)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -174,26 +178,31 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	status, err := s.redis.Get(context.Background(), req.Email).Result()
 	if err != nil || status != EmailVerified {
 		log.Print("failed to get verification status: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
+		s.errorResponse(
+			w,
+			http.StatusInternalServerError,
+			"Error creating new account. Please start over sign up flow.",
+		)
 		return
 	}
 
 	_, err = s.store.GetUserByName(req.Username)
 	if err == nil {
 		log.Print("username exists: ", req.Username)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusBadRequest, "Username already exists")
 		return
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
 		log.Print("error fetching username from db: ", req.Username)
-		http.Error(w, "Error signing up new user", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusInternalServerError, "Error verifying username")
 		return
 	}
 
 	// hash password
 	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
+		s.errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -209,7 +218,7 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	err = s.store.InsertUser(newUser)
 	if err != nil {
 		log.Print("failed to insert user: ", err)
-		http.Error(w, "Error creating user.", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusInternalServerError, "Error saving new account")
 		return
 	}
 
@@ -217,8 +226,6 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	_, err = s.redis.Del(context.Background(), req.Email).Result()
 	if err != nil {
 		log.Print("failed to delete verification status: ", err)
-		http.Error(w, "Error signing up new user.", http.StatusUnprocessableEntity)
-		return
 	}
 
 	// TODO: return jwt

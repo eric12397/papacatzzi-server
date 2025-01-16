@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -45,6 +46,12 @@ func (s *Server) setupRouter() (r *mux.Router) {
 
 func (s *Server) ListenAndServe() {
 	log.Fatal(s.server.ListenAndServe())
+}
+
+func (s *Server) errorResponse(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(message)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
