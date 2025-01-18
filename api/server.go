@@ -1,12 +1,13 @@
 package api
 
 import (
-	"log"
+	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/papacatzzi-server/db"
 	"github.com/papacatzzi-server/email"
+	"github.com/papacatzzi-server/log"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -15,14 +16,16 @@ type Server struct {
 	store  db.Store
 	mailer email.Mailer
 	redis  *redis.Client
+	logger log.Logger
 }
 
-func NewServer(store db.Store, mailer email.Mailer, redis *redis.Client) (s *Server, err error) {
+func NewServer(store db.Store, mailer email.Mailer, redis *redis.Client, logger log.Logger) (s *Server, err error) {
 	s = &Server{
 		server: &http.Server{Addr: ":8080"},
 		store:  store,
 		mailer: mailer,
 		redis:  redis,
+		logger: logger,
 	}
 
 	s.server.Handler = s.setupRouter()
@@ -44,7 +47,13 @@ func (s *Server) setupRouter() (r *mux.Router) {
 }
 
 func (s *Server) ListenAndServe() {
-	log.Fatal(s.server.ListenAndServe())
+	s.logger.Fatal().Err((s.server.ListenAndServe()))
+}
+
+func (s *Server) errorResponse(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(message)
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

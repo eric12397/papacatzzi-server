@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,31 +23,32 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 
 	minLng, err := strconv.ParseFloat(queryParams.Get("minLng"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing minLng", http.StatusBadRequest)
+		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing minLat")
 		return
 	}
 
 	minLat, err := strconv.ParseFloat(queryParams.Get("minLat"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing minLat", http.StatusBadRequest)
+		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing minLat")
 		return
 	}
 
 	maxLng, err := strconv.ParseFloat(queryParams.Get("maxLng"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing maxLng", http.StatusBadRequest)
+		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing maxLng")
 		return
 	}
 
 	maxLat, err := strconv.ParseFloat(queryParams.Get("maxLat"), 64)
 	if err != nil {
-		http.Error(w, "Invalid or missing maxLat", http.StatusBadRequest)
+		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing maxLat")
 		return
 	}
 
 	sightings, err := s.store.GetSightingsByCoordinates(minLng, minLat, maxLng, maxLat)
 	if err != nil {
-		http.Error(w, "Error getting sightings.", http.StatusBadRequest)
+		s.logger.Error().Err(err).Msg("failed to fetch coordinates from db")
+		s.errorResponse(w, http.StatusNotFound, "Sightings not found at specified coordinates")
 		return
 	}
 
@@ -62,6 +62,7 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(coords)
 }
 
@@ -79,8 +80,8 @@ func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 
 	sighting, err := s.store.GetSightingByID(id)
 	if err != nil {
-		log.Print("failed to get sighting by id: ", err)
-		http.Error(w, "Error getting sighting by ID.", http.StatusBadRequest)
+		s.logger.Error().Err(err).Msg("failed to fetch sighting from db")
+		s.errorResponse(w, http.StatusNotFound, "Sighting not found by ID")
 		return
 	}
 
@@ -92,6 +93,7 @@ func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 		Timestamp:   sighting.Timestamp,
 	}
 
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
 }
 
@@ -122,14 +124,13 @@ func (s *Server) createSighting(w http.ResponseWriter, r *http.Request) {
 	var csr createSightingRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&csr); err != nil {
-		log.Print("failed to parse request json: ", err)
-		http.Error(w, "Error creating sighting.", http.StatusUnprocessableEntity)
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
 		return
 	}
 
 	if err := csr.Validate(); err != nil {
-		log.Print("failed to validate create sighting request: ", err)
-		http.Error(w, "Error creating sighting", http.StatusUnprocessableEntity)
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -145,8 +146,8 @@ func (s *Server) createSighting(w http.ResponseWriter, r *http.Request) {
 
 	err := s.store.InsertSighting(newSighting)
 	if err != nil {
-		log.Print("failed to insert sighting: ", err)
-		http.Error(w, "Error creating sighting.", http.StatusUnprocessableEntity)
+		s.logger.Error().Err(err).Msg("failed to insert sighting")
+		s.errorResponse(w, http.StatusInternalServerError, "Error creating sighting")
 		return
 	}
 
