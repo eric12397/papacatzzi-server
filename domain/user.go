@@ -1,4 +1,4 @@
-package models
+package domain
 
 import "time"
 
@@ -10,3 +10,5 @@ type User struct {
 	CreatedAt time.Time
 	IsActive  bool
 }
+
+// TODO: define possible interfaces for service/repo here

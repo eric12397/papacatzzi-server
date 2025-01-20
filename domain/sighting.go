@@ -1,4 +1,4 @@
-package models
+package domain
 
 import "time"
 
@@ -13,3 +13,5 @@ type Sighting struct {
 	Longitude float64
 	Timestamp time.Time
 }
+
+// TODO: define possible interfaces for service/repo here

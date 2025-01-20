@@ -1,31 +1,32 @@
-package api
+package http
 
 import (
 	"encoding/json"
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/papacatzzi-server/db"
-	"github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/log"
-	"github.com/redis/go-redis/v9"
+	"github.com/papacatzzi-server/service"
 )
 
 type Server struct {
-	server *http.Server
-	store  db.Store
-	mailer email.Mailer
-	redis  *redis.Client
-	logger log.Logger
+	server          *http.Server
+	logger          log.Logger
+	authService     service.AuthService
+	sightingService service.SightingService
 }
 
-func NewServer(store db.Store, mailer email.Mailer, redis *redis.Client, logger log.Logger) (s *Server, err error) {
+func NewServer(
+	logger log.Logger,
+	authService service.AuthService,
+	sightingService service.SightingService,
+) (s *Server) {
+
 	s = &Server{
-		server: &http.Server{Addr: ":8080"},
-		store:  store,
-		mailer: mailer,
-		redis:  redis,
-		logger: logger,
+		server:          &http.Server{Addr: ":8080"},
+		logger:          logger,
+		authService:     authService,
+		sightingService: sightingService,
 	}
 
 	s.server.Handler = s.setupRouter()
