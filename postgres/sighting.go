@@ -1,17 +1,27 @@
-package db
+package postgres
 
 import (
-	"github.com/papacatzzi-server/models"
+	"database/sql"
+
+	"github.com/papacatzzi-server/domain"
 )
 
-func (s Store) GetSightingsByCoordinates(
+type SightingRepository struct {
+	db *sql.DB
+}
+
+func NewSightingRepository(db *sql.DB) SightingRepository {
+	return SightingRepository{db: db}
+}
+
+func (r SightingRepository) GetSightingsByCoordinates(
 	minLng float64,
 	minLat float64,
 	maxLng float64,
 	maxLat float64,
-) (sightings []models.Sighting, err error) {
+) (sightings []domain.Sighting, err error) {
 
-	rows, err := s.db.Query(`
+	rows, err := r.db.Query(`
 		SELECT id, latitude, longitude, created_at
 		FROM sightings
 		WHERE ST_MakePoint(longitude, latitude) && ST_MakeEnvelope($1, $2, $3, $4, 4326)
@@ -22,7 +32,7 @@ func (s Store) GetSightingsByCoordinates(
 	}
 
 	for rows.Next() {
-		var s models.Sighting
+		var s domain.Sighting
 		rows.Scan(&s.ID, &s.Latitude, &s.Longitude, &s.Timestamp)
 		if err != nil {
 			return
@@ -34,9 +44,9 @@ func (s Store) GetSightingsByCoordinates(
 	return
 }
 
-func (s Store) GetSightingByID(id string) (sighting models.Sighting, err error) {
+func (r SightingRepository) GetSightingByID(id string) (sighting domain.Sighting, err error) {
 
-	err = s.db.QueryRow(`
+	err = r.db.QueryRow(`
 		SELECT id, user_id, animal_type, photo_url, description, created_at
 		FROM sightings
 		WHERE id = $1
@@ -45,9 +55,9 @@ func (s Store) GetSightingByID(id string) (sighting models.Sighting, err error) 
 	return
 }
 
-func (s Store) InsertSighting(sighting models.Sighting) (err error) {
+func (r SightingRepository) InsertSighting(sighting domain.Sighting) (err error) {
 
-	_, err = s.db.Exec(`
+	_, err = r.db.Exec(`
 		INSERT INTO sightings 
 		(user_id, animal_type, photo_url, description, latitude, longitude, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)

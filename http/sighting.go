@@ -1,4 +1,4 @@
-package api
+package http
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/gorilla/mux"
-	"github.com/papacatzzi-server/models"
+	"github.com/papacatzzi-server/domain"
 )
 
 type coordinates struct {
@@ -45,7 +45,7 @@ func (s *Server) listSightings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sightings, err := s.store.GetSightingsByCoordinates(minLng, minLat, maxLng, maxLat)
+	sightings, err := s.sightingService.List(minLng, minLat, maxLng, maxLat)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to fetch coordinates from db")
 		s.errorResponse(w, http.StatusNotFound, "Sightings not found at specified coordinates")
@@ -78,7 +78,7 @@ func (s *Server) getSighting(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	sighting, err := s.store.GetSightingByID(id)
+	sighting, err := s.sightingService.GetByID(id)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to fetch sighting from db")
 		s.errorResponse(w, http.StatusNotFound, "Sighting not found by ID")
@@ -134,7 +134,7 @@ func (s *Server) createSighting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newSighting := models.Sighting{
+	newSighting := domain.Sighting{
 		Animal:      csr.Animal,
 		Description: csr.Description,
 		PhotoURL:    csr.PhotoURL,
@@ -144,7 +144,7 @@ func (s *Server) createSighting(w http.ResponseWriter, r *http.Request) {
 		Timestamp:   csr.Timestamp,
 	}
 
-	err := s.store.InsertSighting(newSighting)
+	err := s.sightingService.Create(newSighting)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("failed to insert sighting")
 		s.errorResponse(w, http.StatusInternalServerError, "Error creating sighting")

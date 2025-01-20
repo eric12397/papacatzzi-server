@@ -1,0 +1,140 @@
+package http
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/papacatzzi-server/domain"
+)
+
+const EmailVerified = "EMAIL_VERIFIED"
+
+type beginSignUpRequest struct {
+	Email string `json:"email"`
+}
+
+func (req beginSignUpRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+	)
+}
+
+func (s *Server) beginSignUp(w http.ResponseWriter, r *http.Request) {
+	var req beginSignUpRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.BeginSignUp(req.Email)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrUserAccountActive):
+			s.errorResponse(w, http.StatusBadRequest, err.Error())
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "failed to begin sign up")
+		}
+		return
+	}
+
+	s.logger.Debug().Msg("email sent successfully")
+	w.WriteHeader(http.StatusOK)
+}
+
+type verifySignUpRequest struct {
+	Code  string `json:"code"`
+	Email string `json:"email"`
+}
+
+func (req verifySignUpRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+		validation.Field(&req.Code, validation.Required, validation.Length(6, 6), is.Digit),
+	)
+}
+
+func (s *Server) verifySignUp(w http.ResponseWriter, r *http.Request) {
+	var req verifySignUpRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.VerifySignUp(req.Email, req.Code)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrIncorrectCode):
+			s.errorResponse(w, http.StatusBadRequest, err.Error())
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "failed to verify sign up")
+		}
+		return
+	}
+
+	s.logger.Debug().Msg("email verified successfully")
+	w.WriteHeader(http.StatusOK)
+}
+
+type finishSignUpRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (req finishSignUpRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Username, validation.Required),
+		validation.Field(&req.Email, validation.Required, is.Email),
+		validation.Field(&req.Password, validation.Required, validation.Length(10, 20)),
+	)
+}
+
+func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
+	var req finishSignUpRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.FinishSignUp(req.Email, req.Username, req.Password)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrUsernameExists):
+			s.errorResponse(w, http.StatusBadRequest, err.Error())
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "failed to finish sign up")
+		}
+		return
+	}
+
+	// TODO: return jwt
+	//s.logger.Debug().Msgf("user signed up successfully: %v", newUser.Username)
+	w.WriteHeader(http.StatusOK)
+}
