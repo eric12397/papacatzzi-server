@@ -12,6 +12,58 @@ import (
 
 const EmailVerified = "EMAIL_VERIFIED"
 
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (req loginRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+		validation.Field(&req.Password, validation.Required),
+	)
+}
+
+type loginResponse struct {
+	AccessToken  string `json:"access"`
+	RefreshToken string `json:"refresh"`
+}
+
+func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	var req loginRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	accessToken, refreshToken, err := s.authService.Login(req.Email, req.Password)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrInvalidCredentials):
+			s.errorResponse(w, http.StatusUnauthorized, "Invalid username or password")
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "Failed to process log in")
+		}
+		return
+	}
+
+	res := loginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}
+
 type beginSignUpRequest struct {
 	Email string `json:"email"`
 }

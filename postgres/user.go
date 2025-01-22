@@ -28,10 +28,10 @@ func (r UserRepository) GetUserByName(username string) (user domain.User, err er
 func (r UserRepository) GetUserByEmail(email string) (user domain.User, err error) {
 
 	err = r.db.QueryRow(`
-		SELECT email, is_active
+		SELECT email, password, is_active
 		FROM users
 		WHERE email = $1
-	`, email).Scan(&user.Email, &user.IsActive)
+	`, email).Scan(&user.Email, &user.Password, &user.IsActive)
 
 	return
 }
