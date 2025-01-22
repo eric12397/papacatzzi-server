@@ -36,6 +36,8 @@ func NewServer(
 func (s *Server) setupRouter() (r *mux.Router) {
 	r = mux.NewRouter()
 
+	r.HandleFunc("/login", s.login).Methods("POST")
+
 	r.HandleFunc("/signup/begin", s.beginSignUp).Methods("POST")
 	r.HandleFunc("/signup/verify", s.verifySignUp).Methods("POST")
 	r.HandleFunc("/signup/finish", s.finishSignUp).Methods("POST")

@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/papacatzzi-server/domain"
 	"github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/postgres"
@@ -15,7 +17,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const EmailVerified = "EMAIL_VERIFIED"
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
+const (
+	EmailVerified = "EMAIL_VERIFIED"
+
+	accessTokenExpiry  = time.Hour * 24 * 7
+	refreshTokenExpiry = time.Hour * 24 * 30
+)
 
 type AuthService struct {
 	repository postgres.UserRepository
@@ -25,6 +34,38 @@ type AuthService struct {
 
 func NewAuthService(repo postgres.UserRepository, redis *redis.Client, mailer email.Mailer) AuthService {
 	return AuthService{repository: repo, redis: redis, mailer: mailer}
+}
+
+func (svc *AuthService) Login(email string, password string) (accessToken string, refreshToken string, err error) {
+	user, err := svc.repository.GetUserByEmail(email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = domain.ErrInvalidCredentials
+			return
+		}
+		err = fmt.Errorf("failed to fetch username from db: %v", err)
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err != nil {
+		err = domain.ErrInvalidCredentials
+		return
+	}
+
+	accessToken, err = createToken(user, accessTokenExpiry)
+	if err != nil {
+		err = fmt.Errorf("failed to create access token: %v", err)
+		return
+	}
+
+	refreshToken, err = createToken(user, refreshTokenExpiry)
+	if err != nil {
+		err = fmt.Errorf("failed to create refresh token: %v", err)
+		return
+	}
+
+	return
 }
 
 func (svc *AuthService) BeginSignUp(email string) (err error) {
@@ -57,15 +98,6 @@ func (svc *AuthService) BeginSignUp(email string) (err error) {
 	}()
 
 	return
-}
-
-func generateVerificationCode() (code string) {
-	digits := "0123456789"
-	for i := 0; i < 6; i++ {
-		code += string(digits[rand.Intn(len(digits))])
-	}
-
-	return code
 }
 
 func (svc *AuthService) VerifySignUp(email string, code string) (err error) {
@@ -138,4 +170,32 @@ func (svc *AuthService) FinishSignUp(email string, username string, password str
 	}
 
 	return
+}
+
+func generateVerificationCode() (code string) {
+	digits := "0123456789"
+	for i := 0; i < 6; i++ {
+		code += string(digits[rand.Intn(len(digits))])
+	}
+
+	return code
+}
+
+type claims struct {
+	jwt.RegisteredClaims
+	Email string
+}
+
+func createToken(user domain.User, expiry time.Duration) (string, error) {
+	claims := claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   fmt.Sprintf("%d", user.ID),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+		},
+		Email: user.Email,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
 }
