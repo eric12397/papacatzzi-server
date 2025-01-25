@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/papacatzzi-server/log"
@@ -43,7 +44,7 @@ func (s *Server) setupRouter() (r *mux.Router) {
 	r.HandleFunc("/signup/finish", s.finishSignUp).Methods("POST")
 
 	r.HandleFunc("/sightings", s.listSightings).Methods("GET")
-	r.HandleFunc("/sightings", s.createSighting).Methods("POST")
+	r.Handle("/sightings", s.auth(http.HandlerFunc(s.createSighting))).Methods("POST", "OPTIONS")
 	r.HandleFunc("/sightings/{id}", s.getSighting).Methods("GET")
 	r.Use(corsMiddleware)
 	return
@@ -68,6 +69,32 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		if r.Method == "OPTIONS" {
 			http.Error(w, "No Content", http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) auth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := r.Header.Get("Authorization")
+		if header == "" {
+			s.errorResponse(w, http.StatusUnauthorized, "Authorization header required")
+			return
+		}
+
+		parts := strings.Split(header, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			s.errorResponse(w, http.StatusUnauthorized, "Invalid authorization header")
+			return
+		}
+
+		token := parts[1]
+		err := s.authService.VerifyToken(token)
+		if err != nil {
+			s.logger.Error().Msg(err.Error())
+			s.errorResponse(w, http.StatusUnauthorized, "Error verifying token")
 			return
 		}
 

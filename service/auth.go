@@ -172,6 +172,27 @@ func (svc *AuthService) FinishSignUp(email string, username string, password str
 	return
 }
 
+func (svc *AuthService) VerifyToken(tokenString string) (err error) {
+	token, err := jwt.ParseWithClaims(tokenString, &claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil {
+		err = fmt.Errorf("error parsing token, %v", err)
+		return
+	}
+
+	_, ok := token.Claims.(*claims)
+	if !ok || !token.Valid {
+		return fmt.Errorf("invalid token")
+	}
+
+	return
+}
+
 func generateVerificationCode() (code string) {
 	digits := "0123456789"
 	for i := 0; i < 6; i++ {
