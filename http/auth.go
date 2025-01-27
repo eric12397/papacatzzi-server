@@ -198,3 +198,29 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	//s.logger.Debug().Msgf("user signed up successfully: %v", newUser.Username)
 	w.WriteHeader(http.StatusOK)
 }
+
+type refreshTokenResponse struct {
+	AccessToken string `json:"access"`
+}
+
+func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
+	refreshToken, err := r.Cookie("refresh_token")
+	if err != nil {
+		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing cookie")
+		return
+	}
+
+	accessToken, err := s.authService.RefreshToken(refreshToken.Value)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		s.errorResponse(w, http.StatusInternalServerError, "Error refreshing token")
+		return
+	}
+
+	res := refreshTokenResponse{
+		AccessToken: accessToken,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}

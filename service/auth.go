@@ -193,6 +193,40 @@ func (svc *AuthService) VerifyToken(tokenString string) (err error) {
 	return
 }
 
+func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, err error) {
+	token, err := jwt.ParseWithClaims(refreshToken, &claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil {
+		err = fmt.Errorf("error parsing token, %v", err)
+		return
+	}
+
+	claims, ok := token.Claims.(*claims)
+	if !ok || !token.Valid {
+		err = fmt.Errorf("invalid token")
+		return
+	}
+
+	user, err := svc.repository.GetUserByEmail(claims.Email)
+	if err != nil {
+		err = fmt.Errorf("failed to fetch username from db: %v", err)
+		return
+	}
+
+	accessToken, err = createToken(user, accessTokenExpiry)
+	if err != nil {
+		err = fmt.Errorf("failed to create access token: %v", err)
+		return
+	}
+
+	return
+}
+
 func generateVerificationCode() (code string) {
 	digits := "0123456789"
 	for i := 0; i < 6; i++ {

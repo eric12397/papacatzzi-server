@@ -43,6 +43,8 @@ func (s *Server) setupRouter() (r *mux.Router) {
 	r.HandleFunc("/signup/verify", s.verifySignUp).Methods("POST")
 	r.HandleFunc("/signup/finish", s.finishSignUp).Methods("POST")
 
+	r.HandleFunc("/refresh/token", s.refreshToken).Methods("POST")
+
 	r.HandleFunc("/sightings", s.listSightings).Methods("GET")
 	r.Handle("/sightings", s.auth(http.HandlerFunc(s.createSighting))).Methods("POST", "OPTIONS")
 	r.HandleFunc("/sightings/{id}", s.getSighting).Methods("GET")
