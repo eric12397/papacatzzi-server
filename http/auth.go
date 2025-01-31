@@ -25,7 +25,8 @@ func (req loginRequest) Validate() (err error) {
 }
 
 type loginResponse struct {
-	AccessToken string `json:"access"`
+	AccessToken  string `json:"access"`
+	RefreshToken string `json:"refresh"`
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -55,18 +56,9 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := loginResponse{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,                    // Use Secure in production (requires HTTPS)
-		SameSite: http.SameSiteStrictMode, // Adjust SameSite policy as needed
-		//MaxAge: ,
-	})
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
