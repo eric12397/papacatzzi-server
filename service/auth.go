@@ -22,8 +22,8 @@ var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 const (
 	EmailVerified = "EMAIL_VERIFIED"
 
-	accessTokenExpiry  = time.Hour * 24 * 7
-	refreshTokenExpiry = time.Hour * 24 * 30
+	accessTokenExpiration  = time.Minute * 15
+	refreshTokenExpiration = time.Hour * 24 * 7
 )
 
 type AuthService struct {
@@ -53,13 +53,13 @@ func (svc *AuthService) Login(email string, password string) (accessToken string
 		return
 	}
 
-	accessToken, err = createToken(user, accessTokenExpiry)
+	accessToken, err = createToken(user, accessTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create access token: %v", err)
 		return
 	}
 
-	refreshToken, err = createToken(user, refreshTokenExpiry)
+	refreshToken, err = createToken(user, refreshTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create refresh token: %v", err)
 		return
@@ -218,7 +218,7 @@ func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, e
 		return
 	}
 
-	accessToken, err = createToken(user, accessTokenExpiry)
+	accessToken, err = createToken(user, accessTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create access token: %v", err)
 		return
@@ -241,12 +241,12 @@ type claims struct {
 	Email string
 }
 
-func createToken(user domain.User, expiry time.Duration) (string, error) {
+func createToken(user domain.User, expiration time.Duration) (string, error) {
 	claims := claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   fmt.Sprintf("%d", user.ID),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 		},
 		Email: user.Email,
 	}
