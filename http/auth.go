@@ -191,18 +191,35 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refresh"`
+}
+
+func (req refreshTokenRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.RefreshToken, validation.Required),
+	)
+}
+
 type refreshTokenResponse struct {
 	AccessToken string `json:"access"`
 }
 
 func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
-	refreshToken, err := r.Cookie("refresh_token")
-	if err != nil {
-		s.errorResponse(w, http.StatusBadRequest, "Invalid or missing cookie")
+	var req refreshTokenRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
 		return
 	}
 
-	accessToken, err := s.authService.RefreshToken(refreshToken.Value)
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	accessToken, err := s.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
 		s.logger.Error().Msg(err.Error())
 		s.errorResponse(w, http.StatusInternalServerError, "Error refreshing token")
