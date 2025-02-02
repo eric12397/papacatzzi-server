@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/papacatzzi-server/domain"
 	"github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/postgres"
@@ -238,7 +239,8 @@ func generateVerificationCode() (code string) {
 
 type claims struct {
 	jwt.RegisteredClaims
-	Email string
+	Email  string    `json:"email"`
+	UserID uuid.UUID `json:"id"`
 }
 
 func createToken(user domain.User, expiration time.Duration) (string, error) {
@@ -248,7 +250,8 @@ func createToken(user domain.User, expiration time.Duration) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 		},
-		Email: user.Email,
+		Email:  user.Email,
+		UserID: user.ID,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
