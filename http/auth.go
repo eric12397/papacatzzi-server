@@ -190,3 +190,46 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	//s.logger.Debug().Msgf("user signed up successfully: %v", newUser.Username)
 	w.WriteHeader(http.StatusOK)
 }
+
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refresh"`
+}
+
+func (req refreshTokenRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.RefreshToken, validation.Required),
+	)
+}
+
+type refreshTokenResponse struct {
+	AccessToken string `json:"access"`
+}
+
+func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
+	var req refreshTokenRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	accessToken, err := s.authService.RefreshToken(req.RefreshToken)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		s.errorResponse(w, http.StatusInternalServerError, "Error refreshing token")
+		return
+	}
+
+	res := refreshTokenResponse{
+		AccessToken: accessToken,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(res)
+}

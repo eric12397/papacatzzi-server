@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE sightings (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -10,7 +12,7 @@ CREATE TABLE sightings (
 );
 
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username TEXT NOT NULL,
     email TEXT NOT NULL,
     password TEXT NOT NULL,
