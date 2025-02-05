@@ -3,10 +3,12 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/markbates/goth/gothic"
 	"github.com/papacatzzi-server/domain"
 )
 
@@ -232,4 +234,18 @@ func (s *Server) refreshToken(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) beginOAuth(w http.ResponseWriter, r *http.Request) {
+	gothic.BeginAuthHandler(w, r)
+}
+
+func (s *Server) completeOAuth(w http.ResponseWriter, r *http.Request) {
+	user, err := gothic.CompleteUserAuth(w, r)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		s.errorResponse(w, http.StatusInternalServerError, "Error authenticating user")
+	}
+
+	fmt.Println(user)
 }
