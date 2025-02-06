@@ -3,13 +3,14 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/markbates/goth/gothic"
 	"github.com/papacatzzi-server/domain"
+	"github.com/papacatzzi-server/service"
 )
 
 const EmailVerified = "EMAIL_VERIFIED"
@@ -245,7 +246,33 @@ func (s *Server) completeOAuth(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Error().Msg(err.Error())
 		s.errorResponse(w, http.StatusInternalServerError, "Error authenticating user")
+		return
 	}
 
-	fmt.Println(user)
+	accessToken, refreshToken, err := s.authService.CompleteOAuth(user)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		s.errorResponse(w, http.StatusInternalServerError, "Error generating tokens")
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "accessToken",
+		Value:    accessToken,
+		HttpOnly: true,
+		Secure:   false, // Set to true in production (HTTPS only)
+		Path:     "/",
+		Expires:  time.Now().Add(service.AccessTokenExpiration),
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refreshToken",
+		Value:    refreshToken,
+		HttpOnly: true,
+		Secure:   false, // Set to true in production (HTTPS only)
+		Path:     "/",
+		Expires:  time.Now().Add(service.RefreshTokenExpiration),
+	})
+
+	http.Redirect(w, r, "http://localhost:5173/", http.StatusTemporaryRedirect)
 }
