@@ -13,9 +13,10 @@ CREATE TABLE sightings (
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    oauth_id TEXT,
     username TEXT NOT NULL,
     email TEXT NOT NULL,
-    password TEXT NOT NULL,
+    password TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT FALSE
 );
