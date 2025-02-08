@@ -267,7 +267,7 @@ func (svc *AuthService) CompleteOAuth(oAuthID string, email string) (accessToken
 	// link missing oauth id in case user originally signed up for account via normal flow
 	if user.OAuthID == "" {
 		if err = svc.repository.UpdateOAuthID(oAuthID, user.Email); err != nil {
-			err = fmt.Errorf("failed to failed to update oauthid from db: %v", err)
+			err = fmt.Errorf("failed to update oauth id from db: %v", err)
 			return
 		}
 	}
