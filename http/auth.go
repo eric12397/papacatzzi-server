@@ -249,7 +249,7 @@ func (s *Server) completeOAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := s.authService.CompleteOAuth(user)
+	accessToken, refreshToken, err := s.authService.CompleteOAuth(user.UserID, user.Email)
 	if err != nil {
 		s.logger.Error().Msg(err.Error())
 		s.errorResponse(w, http.StatusInternalServerError, "Error generating tokens")

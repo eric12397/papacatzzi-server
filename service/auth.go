@@ -11,7 +11,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/markbates/goth"
 	"github.com/papacatzzi-server/domain"
 	"github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/postgres"
@@ -229,14 +228,19 @@ func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, e
 	return
 }
 
-func (svc *AuthService) CompleteOAuth(oauth goth.User) (accessToken string, refreshToken string, err error) {
-	user, err := svc.repository.GetUserByOAuthID(oauth.UserID)
-	if err != nil {
+func (svc *AuthService) CompleteOAuth(oAuthID string, email string) (accessToken string, refreshToken string, err error) {
+
+	user, err := svc.repository.GetUserByEmail(email)
+	if errors.Is(err, sql.ErrNoRows) {
+
+		// fallback to finding by oauth id
+		user, err = svc.repository.GetUserByOAuthID(oAuthID)
 		if errors.Is(err, sql.ErrNoRows) {
+
 			// create if not found
 			user = domain.User{
-				OAuthID:   oauth.UserID,
-				Email:     oauth.Email,
+				OAuthID:   oAuthID,
+				Email:     email,
 				CreatedAt: time.Now(),
 				IsActive:  true,
 			}
@@ -249,8 +253,21 @@ func (svc *AuthService) CompleteOAuth(oauth goth.User) (accessToken string, refr
 				err = fmt.Errorf("failed to insert user: %v", err)
 				return
 			}
-		} else {
-			err = fmt.Errorf("failed to fetch username from db: %v", err)
+
+		} else if err != nil {
+			err = fmt.Errorf("failed to fetch user by oauth from db: %v", err)
+			return
+		}
+
+	} else if err != nil {
+		err = fmt.Errorf("failed to fetch user by email from db: %v", err)
+		return
+	}
+
+	// link missing oauth id in case user originally signed up for account via normal flow
+	if user.OAuthID == "" {
+		if err = svc.repository.UpdateOAuthID(oAuthID, user.Email); err != nil {
+			err = fmt.Errorf("failed to failed to update oauthid from db: %v", err)
 			return
 		}
 	}
