@@ -1,6 +1,10 @@
 package main
 
 import (
+	"os"
+
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
 	database "github.com/papacatzzi-server/db"
 	"github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/http"
@@ -26,6 +30,10 @@ func main() {
 		Password: "",
 		DB:       0,
 	})
+
+	goth.UseProviders(
+		google.New(os.Getenv("GOOGLE_CLIENT_ID"), os.Getenv("GOOGLE_CLIENT_SECRET"), os.Getenv("GOOGLE_CLIENT_CALLBACK_URL")),
+	)
 
 	sightingRepo := postgres.NewSightingRepository(db)
 	userRepo := postgres.NewUserRepository(db)

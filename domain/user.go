@@ -8,6 +8,7 @@ import (
 
 type User struct {
 	ID        uuid.UUID
+	OAuthID   string
 	Username  string
 	Email     string
 	Password  string

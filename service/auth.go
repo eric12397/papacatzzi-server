@@ -23,8 +23,8 @@ var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 const (
 	EmailVerified = "EMAIL_VERIFIED"
 
-	accessTokenExpiration  = time.Minute * 15
-	refreshTokenExpiration = time.Hour * 24 * 7
+	AccessTokenExpiration  = time.Minute * 15
+	RefreshTokenExpiration = time.Hour * 24 * 7
 )
 
 type AuthService struct {
@@ -54,13 +54,13 @@ func (svc *AuthService) Login(email string, password string) (accessToken string
 		return
 	}
 
-	accessToken, err = createToken(user, accessTokenExpiration)
+	accessToken, err = createToken(user, AccessTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create access token: %v", err)
 		return
 	}
 
-	refreshToken, err = createToken(user, refreshTokenExpiration)
+	refreshToken, err = createToken(user, RefreshTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create refresh token: %v", err)
 		return
@@ -83,7 +83,7 @@ func (svc *AuthService) BeginSignUp(email string) (err error) {
 	}
 
 	// cache verification code into redis
-	code := generateVerificationCode()
+	code := generateCode(6)
 
 	err = svc.redis.Set(context.Background(), email, code, time.Minute*5).Err()
 	if err != nil {
@@ -219,7 +219,7 @@ func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, e
 		return
 	}
 
-	accessToken, err = createToken(user, accessTokenExpiration)
+	accessToken, err = createToken(user, AccessTokenExpiration)
 	if err != nil {
 		err = fmt.Errorf("failed to create access token: %v", err)
 		return
@@ -228,9 +228,68 @@ func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, e
 	return
 }
 
-func generateVerificationCode() (code string) {
+func (svc *AuthService) CompleteOAuth(oAuthID string, email string) (accessToken string, refreshToken string, err error) {
+
+	user, err := svc.repository.GetUserByEmail(email)
+	if errors.Is(err, sql.ErrNoRows) {
+
+		// fallback to finding by oauth id
+		user, err = svc.repository.GetUserByOAuthID(oAuthID)
+		if errors.Is(err, sql.ErrNoRows) {
+
+			// create if not found
+			user = domain.User{
+				OAuthID:   oAuthID,
+				Email:     email,
+				CreatedAt: time.Now(),
+				IsActive:  true,
+			}
+
+			// auto generate username for oauth users, can update later
+			user.Username = "AnonymousUser" + generateCode(12)
+
+			err = svc.repository.InsertUser(user)
+			if err != nil {
+				err = fmt.Errorf("failed to insert user: %v", err)
+				return
+			}
+
+		} else if err != nil {
+			err = fmt.Errorf("failed to fetch user by oauth from db: %v", err)
+			return
+		}
+
+	} else if err != nil {
+		err = fmt.Errorf("failed to fetch user by email from db: %v", err)
+		return
+	}
+
+	// link missing oauth id in case user originally signed up for account via normal flow
+	if user.OAuthID == "" {
+		if err = svc.repository.UpdateOAuthID(oAuthID, user.Email); err != nil {
+			err = fmt.Errorf("failed to update oauth id from db: %v", err)
+			return
+		}
+	}
+
+	accessToken, err = createToken(user, AccessTokenExpiration)
+	if err != nil {
+		err = fmt.Errorf("failed to create access token: %v", err)
+		return
+	}
+
+	refreshToken, err = createToken(user, RefreshTokenExpiration)
+	if err != nil {
+		err = fmt.Errorf("failed to create refresh token: %v", err)
+		return
+	}
+
+	return
+}
+
+func generateCode(length int) (code string) {
 	digits := "0123456789"
-	for i := 0; i < 6; i++ {
+	for i := 0; i < length; i++ {
 		code += string(digits[rand.Intn(len(digits))])
 	}
 
