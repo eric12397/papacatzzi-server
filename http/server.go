@@ -43,6 +43,9 @@ func (s *Server) setupRouter() (r *mux.Router) {
 	r.HandleFunc("/signup/verify", s.verifySignUp).Methods("POST")
 	r.HandleFunc("/signup/finish", s.finishSignUp).Methods("POST")
 
+	r.HandleFunc("/forgot-password", s.forgotPassword).Methods("POST")
+	r.HandleFunc("/reset-password", s.resetPassword).Methods("POST")
+
 	r.HandleFunc("/auth/{provider}", s.beginOAuth).Methods("GET")
 	r.HandleFunc("/auth/{provider}/callback", s.completeOAuth).Methods("GET")
 

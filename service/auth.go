@@ -12,7 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/papacatzzi-server/domain"
-	"github.com/papacatzzi-server/email"
+	smtp "github.com/papacatzzi-server/email"
 	"github.com/papacatzzi-server/postgres"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -21,7 +21,9 @@ import (
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 const (
-	EmailVerified = "EMAIL_VERIFIED"
+	SignUpVerificationKey        = "SIGN_UP_VERIFICATION"
+	PasswordResetVerificationKey = "PASSWORD_RESET_VERIFICATION"
+	VerificationCompleted        = "VERIFICATION_COMPLETED"
 
 	AccessTokenExpiration  = time.Minute * 15
 	RefreshTokenExpiration = time.Hour * 24 * 7
@@ -30,10 +32,10 @@ const (
 type AuthService struct {
 	repository postgres.UserRepository
 	redis      *redis.Client
-	mailer     email.Mailer
+	mailer     smtp.Mailer
 }
 
-func NewAuthService(repo postgres.UserRepository, redis *redis.Client, mailer email.Mailer) AuthService {
+func NewAuthService(repo postgres.UserRepository, redis *redis.Client, mailer smtp.Mailer) AuthService {
 	return AuthService{repository: repo, redis: redis, mailer: mailer}
 }
 
@@ -84,8 +86,9 @@ func (svc *AuthService) BeginSignUp(email string) (err error) {
 
 	// cache verification code into redis
 	code := generateCode(6)
+	key := appendToKey(SignUpVerificationKey, email)
 
-	err = svc.redis.Set(context.Background(), email, code, time.Minute*5).Err()
+	err = svc.redis.Set(context.Background(), key, code, time.Minute*5).Err()
 	if err != nil {
 		err = fmt.Errorf("failed to cache verification code: %v", err)
 		return
@@ -103,7 +106,9 @@ func (svc *AuthService) BeginSignUp(email string) (err error) {
 
 func (svc *AuthService) VerifySignUp(email string, code string) (err error) {
 	// check cache if verification code is correct
-	cached, err := svc.redis.Get(context.Background(), email).Result()
+	key := appendToKey(SignUpVerificationKey, email)
+
+	cached, err := svc.redis.Get(context.Background(), key).Result()
 	if err != nil {
 		err = fmt.Errorf("failed to get verification code: %v", err)
 		return
@@ -115,7 +120,7 @@ func (svc *AuthService) VerifySignUp(email string, code string) (err error) {
 	}
 
 	// if successful, set status to verified
-	err = svc.redis.Set(context.Background(), email, EmailVerified, time.Minute*5).Err()
+	err = svc.redis.Set(context.Background(), key, VerificationCompleted, time.Minute*5).Err()
 	if err != nil {
 		err = fmt.Errorf("failed to cache email verification status: %v", err)
 		return
@@ -126,8 +131,10 @@ func (svc *AuthService) VerifySignUp(email string, code string) (err error) {
 
 func (svc *AuthService) FinishSignUp(email string, username string, password string) (err error) {
 	// check cache if email was verified
-	status, err := svc.redis.Get(context.Background(), email).Result()
-	if err != nil || status != EmailVerified {
+	key := appendToKey(SignUpVerificationKey, email)
+
+	status, err := svc.redis.Get(context.Background(), key).Result()
+	if err != nil || status != VerificationCompleted {
 		err = fmt.Errorf("failed to get verification status: %v", err)
 		return
 	}
@@ -165,7 +172,106 @@ func (svc *AuthService) FinishSignUp(email string, username string, password str
 	}
 
 	// clean up cache after new user is saved
-	_, err = svc.redis.Del(context.Background(), email).Result()
+	_, err = svc.redis.Del(context.Background(), key).Result()
+	if err != nil {
+		// TODO: Add logging
+	}
+
+	return
+}
+
+func (svc *AuthService) ForgotPassword(email string) (err error) {
+	// check if there is an active account with this email
+	user, err := svc.repository.GetUserByEmail(email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = domain.ErrUserAccountNotFound
+			return
+		}
+
+		err = fmt.Errorf("failed to fetch user from db: %v", err)
+		return
+	}
+
+	// cache password reset token into redis
+	token := generateCode(6)
+	key := appendToKey(PasswordResetVerificationKey, email)
+
+	err = svc.redis.Set(context.Background(), key, token, time.Minute*5).Err()
+	if err != nil {
+		err = fmt.Errorf("failed to cache password reset token: %v", err)
+		return
+	}
+
+	go func() {
+		data := map[string]string{
+			"username": user.Username,
+			"link":     fmt.Sprintf("http://localhost:5173/reset-password?token=%v", token),
+		}
+
+		content := smtp.EmailContent{
+			Subject:   "Password reset",
+			Recipient: email,
+			Body:      data,
+		}
+
+		if err := svc.mailer.Send("email/templates/password-reset.html", content); err != nil {
+			// TODO: Add logging
+			return
+		}
+	}()
+
+	return
+}
+
+func (svc *AuthService) ResetPassword(email string, token string, password string) (err error) {
+
+	user, err := svc.repository.GetUserByEmail(email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = domain.ErrUserAccountNotFound
+			return
+		}
+
+		err = fmt.Errorf("failed to fetch user from db: %v", err)
+		return
+	}
+
+	key := appendToKey(PasswordResetVerificationKey, email)
+
+	// validate token
+	cached, err := svc.redis.Get(context.Background(), key).Result()
+	if err != nil {
+		err = fmt.Errorf("failed to get password reset token: %v", err)
+		return
+	}
+
+	if cached != token {
+		err = domain.ErrIncorrectCode
+		return
+	}
+
+	// validate that the new password does not match old one
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err == nil {
+		err = domain.ErrSamePassword
+		return
+	}
+
+	// hash new password
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	if err != nil {
+		return
+	}
+
+	err = svc.repository.UpdatePassword(hashed, email)
+	if err != nil {
+		err = fmt.Errorf("failed to insert user: %v", err)
+		return
+	}
+
+	// clean up cache after new user is saved
+	_, err = svc.redis.Del(context.Background(), key).Result()
 	if err != nil {
 		// TODO: Add logging
 	}
@@ -315,4 +421,8 @@ func createToken(user domain.User, expiration time.Duration) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
+}
+
+func appendToKey(key string, id string) string {
+	return key + "_" + id
 }
