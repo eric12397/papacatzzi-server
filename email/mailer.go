@@ -1,13 +1,20 @@
 package email
 
 import (
-	"fmt"
+	"bytes"
+	"text/template"
 
 	"gopkg.in/gomail.v2"
 )
 
 type Mailer struct {
 	*gomail.Dialer
+}
+
+type EmailContent struct {
+	Subject   string
+	Recipient string
+	Body      map[string]string
 }
 
 func NewMailer() Mailer {
@@ -18,19 +25,23 @@ func NewMailer() Mailer {
 	}
 }
 
-func (m Mailer) SendVerificationCode(recipient string, code string) error {
-	// Create a new message
+func (m Mailer) Send(templatePath string, content EmailContent) error {
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return err
+	}
+
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, content.Body); err != nil {
+		return err
+	}
+
 	message := gomail.NewMessage()
 
-	// Set email headers
 	message.SetHeader("From", "eric12397@gmail.com")
-	message.SetHeader("To", recipient)
-	message.SetHeader("Subject", "Your verification code")
+	message.SetHeader("To", content.Recipient)
+	message.SetHeader("Subject", content.Subject)
+	message.SetBody("text/html", body.String())
 
-	// Set email body
-	text := fmt.Sprintf("Enter your verification code to finish signing up your new account: %s", code)
-	message.SetBody("text/plain", text)
-
-	// Send the email
 	return m.DialAndSend(message)
 }
