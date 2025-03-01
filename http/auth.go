@@ -234,14 +234,12 @@ func (s *Server) forgotPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 type resetPasswordRequest struct {
-	Email       string `json:"email"`
 	Token       string `json:"token"`
 	NewPassword string `json:"newPassword"`
 }
 
 func (req resetPasswordRequest) Validate() (err error) {
 	return validation.ValidateStruct(&req,
-		validation.Field(&req.Email, validation.Required, is.Email),
 		validation.Field(&req.Token, validation.Required),
 		validation.Field(&req.NewPassword, validation.Required, validation.Length(10, 20)),
 	)
@@ -261,11 +259,11 @@ func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.authService.ResetPassword(req.Email, req.Token, req.NewPassword)
+	err := s.authService.ResetPassword(req.Token, req.NewPassword)
 	if err != nil {
 		s.logger.Error().Msg(err.Error())
 		switch {
-		case errors.Is(err, domain.ErrSamePassword), errors.Is(err, domain.ErrIncorrectCode):
+		case errors.Is(err, domain.ErrSamePassword):
 			s.errorResponse(w, http.StatusBadRequest, err.Error())
 		default:
 			s.errorResponse(w, http.StatusInternalServerError, "failed to change password")

@@ -99,7 +99,7 @@ func (s *Server) auth(next http.Handler) http.Handler {
 		}
 
 		token := parts[1]
-		err := s.authService.VerifyToken(token)
+		_, err := s.authService.VerifyToken(token)
 		if err != nil {
 			s.logger.Error().Msg(err.Error())
 			s.errorResponse(w, http.StatusUnauthorized, "Error verifying token")

@@ -21,12 +21,15 @@ import (
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 const (
-	SignUpVerificationKey        = "SIGN_UP_VERIFICATION"
-	PasswordResetVerificationKey = "PASSWORD_RESET_VERIFICATION"
-	VerificationCompleted        = "VERIFICATION_COMPLETED"
+	SignUpVerificationKey = "SIGN_UP_VERIFICATION"
+	VerificationCompleted = "VERIFICATION_COMPLETED"
 
-	AccessTokenExpiration  = time.Minute * 15
-	RefreshTokenExpiration = time.Hour * 24 * 7
+	BlacklistKey     = "BLACKLIST"
+	TokenBlacklisted = "TOKEN_BLACKLISTED"
+
+	AccessTokenExpiration        = time.Minute * 15
+	RefreshTokenExpiration       = time.Hour * 24 * 7
+	PasswordResetTokenExpiration = time.Hour
 )
 
 type AuthService struct {
@@ -95,7 +98,15 @@ func (svc *AuthService) BeginSignUp(email string) (err error) {
 	}
 
 	go func() {
-		if err := svc.mailer.SendVerificationCode(email, code); err != nil {
+		data := map[string]string{}
+
+		content := smtp.EmailContent{
+			Subject:   "Sign up your new account",
+			Recipient: email,
+			Body:      data,
+		}
+
+		if err := svc.mailer.Send("email/templates/signup.html", content); err != nil {
 			// TODO: Add logging
 			return
 		}
@@ -193,13 +204,9 @@ func (svc *AuthService) ForgotPassword(email string) (err error) {
 		return
 	}
 
-	// cache password reset token into redis
-	token := generateCode(6)
-	key := appendToKey(PasswordResetVerificationKey, email)
-
-	err = svc.redis.Set(context.Background(), key, token, time.Minute*5).Err()
+	token, err := createToken(user, PasswordResetTokenExpiration)
 	if err != nil {
-		err = fmt.Errorf("failed to cache password reset token: %v", err)
+		err = fmt.Errorf("failed to create password reset token: %v", err)
 		return
 	}
 
@@ -224,9 +231,14 @@ func (svc *AuthService) ForgotPassword(email string) (err error) {
 	return
 }
 
-func (svc *AuthService) ResetPassword(email string, token string, password string) (err error) {
+func (svc *AuthService) ResetPassword(token string, password string) (err error) {
+	// get email from token
+	claims, err := svc.VerifyToken(token)
+	if err != nil {
+		return
+	}
 
-	user, err := svc.repository.GetUserByEmail(email)
+	user, err := svc.repository.GetUserByEmail(claims.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = domain.ErrUserAccountNotFound
@@ -234,20 +246,6 @@ func (svc *AuthService) ResetPassword(email string, token string, password strin
 		}
 
 		err = fmt.Errorf("failed to fetch user from db: %v", err)
-		return
-	}
-
-	key := appendToKey(PasswordResetVerificationKey, email)
-
-	// validate token
-	cached, err := svc.redis.Get(context.Background(), key).Result()
-	if err != nil {
-		err = fmt.Errorf("failed to get password reset token: %v", err)
-		return
-	}
-
-	if cached != token {
-		err = domain.ErrIncorrectCode
 		return
 	}
 
@@ -264,44 +262,17 @@ func (svc *AuthService) ResetPassword(email string, token string, password strin
 		return
 	}
 
-	err = svc.repository.UpdatePassword(hashed, email)
+	err = svc.repository.UpdatePassword(hashed, user.Email)
 	if err != nil {
-		err = fmt.Errorf("failed to insert user: %v", err)
+		err = fmt.Errorf("failed to update password: %v", err)
 		return
-	}
-
-	// clean up cache after new user is saved
-	_, err = svc.redis.Del(context.Background(), key).Result()
-	if err != nil {
-		// TODO: Add logging
 	}
 
 	return
 }
 
-func (svc *AuthService) VerifyToken(tokenString string) (err error) {
+func (svc *AuthService) VerifyToken(tokenString string) (c *claims, err error) {
 	token, err := jwt.ParseWithClaims(tokenString, &claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return jwtSecret, nil
-	})
-
-	if err != nil {
-		err = fmt.Errorf("error parsing token, %v", err)
-		return
-	}
-
-	_, ok := token.Claims.(*claims)
-	if !ok || !token.Valid {
-		return fmt.Errorf("invalid token")
-	}
-
-	return
-}
-
-func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, err error) {
-	token, err := jwt.ParseWithClaims(refreshToken, &claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -316,6 +287,16 @@ func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, e
 	claims, ok := token.Claims.(*claims)
 	if !ok || !token.Valid {
 		err = fmt.Errorf("invalid token")
+		return
+	}
+
+	c = claims
+	return
+}
+
+func (svc *AuthService) RefreshToken(refreshToken string) (accessToken string, err error) {
+	claims, err := svc.VerifyToken(refreshToken)
+	if err != nil {
 		return
 	}
 
