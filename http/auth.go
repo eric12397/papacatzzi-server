@@ -194,6 +194,86 @@ func (s *Server) finishSignUp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+type forgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+func (req forgotPasswordRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Email, validation.Required, is.Email),
+	)
+}
+
+func (s *Server) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req forgotPasswordRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.ForgotPassword(req.Email)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrUserAccountNotFound):
+			s.errorResponse(w, http.StatusBadRequest, err.Error())
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "failed to begin password reset")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+type resetPasswordRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"newPassword"`
+}
+
+func (req resetPasswordRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Token, validation.Required),
+		validation.Field(&req.NewPassword, validation.Required, validation.Length(10, 20)),
+	)
+}
+
+func (s *Server) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var req resetPasswordRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.ResetPassword(req.Token, req.NewPassword)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrSamePassword):
+			s.errorResponse(w, http.StatusBadRequest, err.Error())
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "failed to change password")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 type refreshTokenRequest struct {
 	RefreshToken string `json:"refresh"`
 }

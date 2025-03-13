@@ -28,10 +28,10 @@ func (r UserRepository) GetUserByName(username string) (user domain.User, err er
 func (r UserRepository) GetUserByEmail(email string) (user domain.User, err error) {
 
 	err = r.db.QueryRow(`
-		SELECT id, email, password, is_active, oauth_id
+		SELECT id, username, email, password, is_active, oauth_id
 		FROM users
 		WHERE email = $1
-	`, email).Scan(&user.ID, &user.Email, &user.Password, &user.IsActive, &user.OAuthID)
+	`, email).Scan(&user.ID, &user.Username, &user.Email, &user.Password, &user.IsActive, &user.OAuthID)
 
 	return
 }
@@ -65,6 +65,17 @@ func (r UserRepository) UpdateOAuthID(oAuthID string, email string) (err error) 
 		SET oauth_id = $1
 		WHERE email = $2
 	`, oAuthID, email)
+
+	return
+}
+
+func (r UserRepository) UpdatePassword(password []byte, email string) (err error) {
+
+	_, err = r.db.Exec(`
+		UPDATE users 
+		SET password = $1
+		WHERE email = $2
+	`, password, email)
 
 	return
 }
