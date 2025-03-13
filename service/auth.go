@@ -29,7 +29,7 @@ const (
 
 	AccessTokenExpiration        = time.Minute * 15
 	RefreshTokenExpiration       = time.Hour * 24 * 7
-	PasswordResetTokenExpiration = time.Hour
+	PasswordResetTokenExpiration = time.Minute * 5
 )
 
 type AuthService struct {
