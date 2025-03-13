@@ -71,6 +71,8 @@ func (svc *AuthService) Login(email string, password string) (accessToken string
 		return
 	}
 
+	// TODO: store refresh token in redis, revoke/delete when user logs out
+
 	return
 }
 
