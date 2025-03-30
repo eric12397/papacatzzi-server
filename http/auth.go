@@ -13,8 +13,6 @@ import (
 	"github.com/papacatzzi-server/service"
 )
 
-const EmailVerified = "EMAIL_VERIFIED"
-
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -65,6 +63,45 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(res)
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh"`
+}
+
+func (req logoutRequest) Validate() (err error) {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.RefreshToken, validation.Required),
+	)
+}
+
+func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	var req logoutRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error().Err(err).Msg("failed to parse request")
+		s.errorResponse(w, http.StatusBadRequest, "Error parsing request")
+		return
+	}
+
+	if err := req.Validate(); err != nil {
+		s.errorResponse(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	err := s.authService.Logout(req.RefreshToken)
+	if err != nil {
+		s.logger.Error().Msg(err.Error())
+		switch {
+		case errors.Is(err, domain.ErrInvalidCredentials):
+			s.errorResponse(w, http.StatusUnauthorized, "Invalid username or password")
+		default:
+			s.errorResponse(w, http.StatusInternalServerError, "Failed to process log in")
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 type beginSignUpRequest struct {

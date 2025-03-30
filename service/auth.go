@@ -76,6 +76,13 @@ func (svc *AuthService) Login(email string, password string) (accessToken string
 	return
 }
 
+func (svc *AuthService) Logout(refreshToken string) (err error) {
+
+	// TODO: store refresh token in redis, revoke/delete when user logs out
+
+	return
+}
+
 func (svc *AuthService) BeginSignUp(email string) (err error) {
 	// check if there is an active account with this email
 	user, err := svc.repository.GetUserByEmail(email)
