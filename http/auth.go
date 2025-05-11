@@ -92,12 +92,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	err := s.authService.Logout(req.RefreshToken)
 	if err != nil {
 		s.logger.Error().Msg(err.Error())
-		switch {
-		case errors.Is(err, domain.ErrInvalidCredentials):
-			s.errorResponse(w, http.StatusUnauthorized, "Invalid username or password")
-		default:
-			s.errorResponse(w, http.StatusInternalServerError, "Failed to process log in")
-		}
+		s.errorResponse(w, http.StatusInternalServerError, "Failed to process log out")
 		return
 	}
 
