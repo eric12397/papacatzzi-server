@@ -71,6 +71,7 @@ func (svc *AuthService) Login(email string, password string) (accessToken string
 		return
 	}
 
+	// store refresh token in redis, revoke/delete when user logs out
 	err = svc.redis.Set(context.Background(), "refresh:"+refreshToken, user.ID, RefreshTokenExpiration).Err()
 	if err != nil {
 		err = fmt.Errorf("failed to cache refresh token: %v", err)
